@@ -1,5 +1,5 @@
 # Welcome to react-native-upgrade 👋
-![Version](https://img.shields.io/npm/v/react-native-upgrade.svg)
+![Version](https://img.shields.io/npm/v/rn-upgrade.svg)
 
 > Upgrade react native version using rn-diff-purge repo
 
