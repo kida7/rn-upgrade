@@ -8,12 +8,15 @@ import { exec } from './utils'
 import parser from 'yargs-parser'
 import path from 'path'
 import fs from 'fs'
+import fse from 'fs-extra'
 import chalk from 'chalk'
 // import axios from 'axios'
 
 require('./string')
 ///Users/vinhle/Desktop/projects/rn_v60/android/app/src/main/AndroidManifest.xml
 const argv = parser(process.argv.slice(2))
+let _isTest = argv.test
+let writeFileSync = _isTest ? function () { } : fse.outputFileSync
 let _folder = argv._[0] || __dirname
 let rootFolder = path.relative(__dirname, _folder)
 let _package = JSON.parse(fs.readFileSync(path.join(rootFolder, 'package.json'), 'utf-8'))
@@ -47,16 +50,17 @@ let dicCantPatch: {
         .replace(/com\.rndiffapp/g, _androidPackage)
         .replace(/com\/rndiffapp/g, _androidPackage.replace(/\./g, '\/'))
         .replace(/RnDiffApp/g, _name)
-    fs.writeFileSync('./diff', diffContent)
+    writeFileSync('./diff', diffContent)
     //@ts-ignore
     let changeBlocks = diffContent
         .split(/diff --git a\/.+ b\/.+\n/).slice(1)
     let _allDiff = diffContent.match(/diff --git a\/.+ b\/.+\n/g) || []
     let noPatchFile: string[] = []
-    changeBlocks.forEach(async (block, index) => {
-        await patch(block, _allDiff[index])
-    })
+    for (let i = 0; i < changeBlocks.length; i++) {
+        await patch(changeBlocks[i], _allDiff[i])
+    }
 })()
+
 
 function patch2(_fileContent: string, block4: string, deep: number, _file: string): string | null {
     let _block3 = block4.split('\n')
@@ -93,42 +97,46 @@ function patch2(_fileContent: string, block4: string, deep: number, _file: strin
 async function patch(changeContent: string, diff: string) {
     let match = diff.match('diff --git a\/(.+) b\/(.+)')
     //@ts-ignore
-    let _file = match[2]
+    let _aFile = match[1]
+    //@ts-ignore
+    let _bFile = match[2]
     if (changeContent.match(/GIT binary patch/)) {
+        let link = `https://raw.githubusercontent.com/react-native-community/rn-diff-purge/version/${_newVer}/RnDiffApp/${_bFile}`
         //@ts-ignore
-        console.log(`${chalk.yellow('Binary files')}: ${chalk.green(_file)}`)
-        if (!_newVer)
-            await exec(`curl https://raw.githubusercontent.com/react-native-community/rn-diff-purge/version/${_newVer}/RnDiffApp/${_file} -o ${path.join(rootFolder, _file)}`)
+        console.log(`${chalk.yellow('Download')} ${chalk.blue(link)} to ${chalk.green(_bFile)}`)
+        if (_newVer)
+            await exec(`curl ${link} -o ${path.join(rootFolder, _bFile)}`)
         return
     } else if (changeContent.startsWith('new file mode')) {
         //@ts-ignore
-        console.log(chalk.blue('Tạo mới file:'), chalk.green(_file))
+        console.log(chalk.blue('Tạo mới file:'), chalk.green(_bFile))
         changeContent = changeContent.split('\n').map(t => t.replace(/^\+/g, '')).join('\n')
-        fs.writeFileSync(path.join(rootFolder, _file), changeContent)
+        writeFileSync(path.join(rootFolder, _bFile), changeContent)
         return
     } else if (changeContent.startsWith('deleted file mode')) {
-        console.log(chalk.red('Xoá file:'), chalk.green(_file))
-        exec(`rm -rf ${path.join(rootFolder, _file)}`)
+        console.log(chalk.red('Xoá file:'), chalk.green(_aFile))
+        if (!_isTest)
+            exec(`rm -rf ${path.join(rootFolder, _aFile)}`)
         return
     }
     let patches = changeContent.split(/@@.+?@@\n?/).slice(1)
     try {
         //@ts-ignore
-        let _fileContent = fs.readFileSync(path.join(rootFolder, _file), 'utf-8')
+        let _fileContent = fs.readFileSync(path.join(rootFolder, _aFile), 'utf-8')
         let patchCount = 0
         patches.forEach(_patch => {
-            let _new = patch2(_fileContent, _patch, 0, _file)
+            let _new = patch2(_fileContent, _patch, 0, _aFile)
             if (_new) {
                 patchCount++
                 _fileContent = _new
             }
         })
-        fs.writeFileSync(path.join(rootFolder, _file), _fileContent)
+        writeFileSync(path.join(rootFolder, _bFile), _fileContent)
         //@ts-ignore
-        console.log(chalk.yellow(`Đã sửa ${chalk.blue('{0}/{1}')} chỗ của file: ${chalk.green('{2}')}`).format(patchCount, patches.length, _file))
+        console.log(chalk.yellow(`Đã sửa ${chalk.blue('{0}/{1}')} chỗ của file: ${chalk.green('{2}')}`).format(patchCount, patches.length, _aFile))
         if (patchCount < patches.length) {
             console.log(chalk.redBright('Conflict:'))
-            console.log(chalk.gray(dicCantPatch[_file].join(chalk.redBright('\nConflict:\n'))))
+            console.log(chalk.gray(dicCantPatch[_aFile].join(chalk.redBright('\nConflict:\n'))))
         }
     } catch (ex) {
         console.log(ex)
