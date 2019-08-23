@@ -22,66 +22,60 @@ let androidManifest = fs.readFileSync(androidManifestPath, { encoding: 'utf-8' }
 let _name = _package.name
 let _currentVer = _package.dependencies['react-native'].replace(/[^\d\.-\w]/g, '')
 let _newVer = argv.v || argv.version;
+let diff = argv.diff || `https://raw.githubusercontent.com/react-native-community/rn-diff-purge/diffs/diffs/${_currentVer}..${_newVer}.diff`
 let dicCantPatch: {
     [key: string]: string[]
 } = {};
 // let _allDiff:string[]
 (async function () {
-    if (!_newVer) {
-        console.log('No way')
+    if (!argv.diff && !_newVer) {
+        console.log('You have to specify version (--version/-v) or diff file (--diff)')
         return
     }
     //@ts-ignore
     let _androidPackage = androidManifest.match(/package="(.+?)"/)[1]
     console.log(_androidPackage)
     // return
-    let diff = await exec(`curl https://raw.githubusercontent.com/react-native-community/rn-diff-purge/diffs/diffs/${_currentVer}..${_newVer}.diff`, null, true)
-    if (!diff.startsWith('diff')) {
+    let diffContent = diff.match(/http/) ? await exec(`curl ${diff}`, null, true) : fs.readFileSync(diff, 'utf-8')
+    if (!diffContent.startsWith('diff')) {
         console.log('Có biến với version bạn chọn')
         return
     }
-    // console.log(diff)
-    diff = diff.replace(/\W[ab]\/RnDiffApp\//g, match => match
+    diffContent = diffContent.replace(/\W[ab]\/RnDiffApp\//g, match => match
         .replace(/(\W[ab]\/)RnDiffApp\//, '$1'))
         .replace(/ios\/RnDiffApp/g, 'ios/' + _name)
         .replace(/com\.rndiffapp/g, _androidPackage)
         .replace(/com\/rndiffapp/g, _androidPackage.replace(/\./g, '\/'))
         .replace(/RnDiffApp/g, _name)
-    fs.writeFileSync('./diff', diff)
-    // return
+    fs.writeFileSync('./diff', diffContent)
     //@ts-ignore
-    let changeBlocks = diff
+    let changeBlocks = diffContent
         .split(/diff --git a\/.+ b\/.+\n/).slice(1)
-    let _allDiff = diff.match(/diff --git a\/.+ b\/.+\n/g) || []
-    // console.log(changeFiles[0])
+    let _allDiff = diffContent.match(/diff --git a\/.+ b\/.+\n/g) || []
     let noPatchFile: string[] = []
-    changeBlocks.forEach((block, index) => {
-        // if (index == 1)
-        patch(block, _allDiff[index])
+    changeBlocks.forEach(async (block, index) => {
+        await patch(block, _allDiff[index])
     })
 })()
 
-// console.log(chalk.red('Các file sau bạn phải tự patch bằng tay:'))
-// console.log(chalk.yellow(noPatchFile.join('\n')))
-function patch2(_fileContent: string, block: string, deep: number, _file: string): string | null {
-    // console.log(block, '\n\n')
-    let origin = block.split('\n').filter(t => !t.match(/^\+/)).map(t => t.replace(/^-/, '')).join('\n')
-    let _patch = block.split('\n').filter(t => !t.match(/^-/)).map(t => t.replace(/^\+/, '')).join('\n')
+function patch2(_fileContent: string, block4: string, deep: number, _file: string): string | null {
+    let _block3 = block4.split('\n').map(t => t.replace(/^ /g, ''))
+    let origin = _block3.filter(t => !t.match(/^[\+]/)).map(t => t.replace(/^[-]/, '')).join('\n')
+    let _patch = _block3.filter(t => !t.match(/^[-]/)).map(t => t.replace(/^[\+]/, '')).join('\n')
 
     //@ts-ignore
     let _reg = (origin.toRegex('i', true).replace(/\d+/g, '\\d+'))
 
 
-    let match
-    if (!(match = _fileContent.match(new RegExp(_reg, 'm')))) {
-        let _block = block.split('\n')
+    if (!(_fileContent.match(new RegExp(_reg, 'm')))) {
         let result = null
-        if (!_block[0].match(/^[+-]/))
-            result = patch2(_fileContent, _block.slice(1).join('\n'), deep + 1, _file)
-
+        if (!_block3[0].match(/^[+-]/))
+            result = patch2(_fileContent, _block3.slice(1).join('\n'), deep + 1, _file)
+        else if (!_block3[_block3.length - 1].match(/^[+-]/))
+            result = patch2(_fileContent, _block3.slice(0, _block3.length - 1).join('\n'), deep + 1, _file)
         if (!result && !deep) {
-            let _block2 = block.split('\n').map(t => t.replace(/^[+-].*$/g, match => {
-                let _match = match.match(/^([+-])(.*)$/)
+            let _block2 = _block3.map(t => t.replace(/^[\+-].*$/g, match => {
+                let _match = match.match(/^([\+-])(.*)$/)
                 //@ts-ignore
                 return (_match[1] == '+') ? chalk.green(_match[2]) : chalk.red(_match[2])
             })).join('\n')
@@ -94,27 +88,28 @@ function patch2(_fileContent: string, block: string, deep: number, _file: string
     return _fileContent.replace(new RegExp(_reg), _patch)
 }
 
-function patch(changeContent: string, diff: string) {
+async function patch(changeContent: string, diff: string) {
     let match = diff.match('diff --git a\/(.+) b\/(.+)')
     //@ts-ignore
     let _file = match[2]
     if (changeContent.match(/GIT binary patch/)) {
         //@ts-ignore
         console.log(`${chalk.yellow('Binary files')}: ${chalk.green(_file)}`)
-        console.log(`https://raw.githubusercontent.com/react-native-community/rn-diff-purge/version/${_newVer}/RnDiffApp/${_file}`)
+        if (!_newVer)
+            await exec(`curl https://raw.githubusercontent.com/react-native-community/rn-diff-purge/version/${_newVer}/RnDiffApp/${_file} -o ${path.join(rootFolder, _file)}`)
         return
     } else if (changeContent.startsWith('new file mode')) {
         //@ts-ignore
         console.log(chalk.blue('Tạo mới file:'), chalk.green(_file))
         changeContent = changeContent.split('\n').map(t => t.replace(/^\+/g, '')).join('\n')
-        // console.log(chalk.green(changeContent))
-        // fs.writeFileSync(path.join(rootFolder, _file), changeContent)
+        fs.writeFileSync(path.join(rootFolder, _file), changeContent)
         return
     } else if (changeContent.startsWith('deleted file mode')) {
         console.log(chalk.red('Xoá file:'), chalk.green(_file))
+        exec(`rm -rf ${path.join(rootFolder, _file)}`)
         return
     }
-    let patches = changeContent.split(/@@.+?@@[ \n]/).slice(1)
+    let patches = changeContent.split(/@@.+?@@\n?/).slice(1)
     try {
         //@ts-ignore
         let _fileContent = fs.readFileSync(path.join(rootFolder, _file), 'utf-8')
@@ -126,7 +121,7 @@ function patch(changeContent: string, diff: string) {
                 _fileContent = _new
             }
         })
-
+        fs.writeFileSync(path.join(rootFolder, _file), _fileContent)
         //@ts-ignore
         console.log(chalk.yellow(`Đã sửa ${chalk.blue('{0}/{1}')} chỗ của file: ${chalk.green('{2}')}`).format(patchCount, patches.length, _file))
         if (patchCount < patches.length) {
