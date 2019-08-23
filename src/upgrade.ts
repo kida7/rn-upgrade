@@ -104,7 +104,7 @@ async function patch(changeContent: string, diff: string) {
         let link = `https://raw.githubusercontent.com/react-native-community/rn-diff-purge/version/${_newVer}/RnDiffApp/${_bFile}`
         //@ts-ignore
         console.log(`${chalk.yellow('Download')} ${chalk.blue(link)} to ${chalk.green(_bFile)}`)
-        if (_newVer)
+        if (_newVer && !_isTest)
             await exec(`curl ${link} -o ${path.join(rootFolder, _bFile)}`)
         return
     } else if (changeContent.startsWith('new file mode')) {
