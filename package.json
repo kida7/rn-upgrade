@@ -1,5 +1,5 @@
 {
-  "name": "rntools",
+  "name": "rn-upgrade",
   "version": "1.0.0",
   "description": "react native dev tools",
   "main": "dist/index.js",
@@ -8,7 +8,7 @@
   },
   "bin": {
     "opensim": "./dist/opensim.js",
-    "react-native-upgrade": "./dist/upgrade.js"
+    "rn-upgrade": "./dist/upgrade.js"
   },
   "author": "kida7",
   "license": "ISC",
