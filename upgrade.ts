@@ -59,7 +59,9 @@ let dicCantPatch: {
 })()
 
 function patch2(_fileContent: string, block4: string, deep: number, _file: string): string | null {
-    let _block3 = block4.split('\n').map(t => t.replace(/^ /g, ''))
+    let _block3 = block4.split('\n')
+    if (!deep)
+        _block3 = _block3.filter(t => !t.match(/^\\/)).map(t => t.replace(/^ /g, ''))
     let origin = _block3.filter(t => !t.match(/^[\+]/)).map(t => t.replace(/^[-]/, '')).join('\n')
     let _patch = _block3.filter(t => !t.match(/^[-]/)).map(t => t.replace(/^[\+]/, '')).join('\n')
 
