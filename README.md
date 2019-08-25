@@ -3,15 +3,25 @@
 
 > Upgrade react native version using rn-diff-purge repo
 
+## Installation
+
+```sh
+yarn globall add rn-upgrade
+```
+
 ## Usage
 
 ```sh
 rn-upgrade --version <version>
 ```
 
+## Contribute
+
+Want to contribute? Please email me or send me a pull request
+
 ## Author
 
-👤 **kida7**
+👤 **kida7** (kida7kahp@gmail.com)
 
 * Github: [@kida7](https://github.com/kida7)
 
