@@ -128,12 +128,6 @@ async function patch(changeContent: string, diff: string) {
         if (_newVer && !_isTest)
             await exec(`curl ${link} -o ${path.join(rootFolder, _bFile)}`)
         return
-    } else if (changeContent.startsWith('new file mode')) {
-        //@ts-ignore
-        console.log(chalk.blue('Tạo mới file:'), chalk.green(_bFile))
-        changeContent = changeContent.split('\n').map(t => t.replace(/^\+/g, '')).join('\n')
-        writeFileSync(path.join(rootFolder, _bFile), changeContent)
-        return
     } else if (changeContent.startsWith('deleted file mode')) {
         console.log(chalk.red('Xoá file:'), chalk.green(_aFile))
         if (!_isTest)
@@ -143,6 +137,13 @@ async function patch(changeContent: string, diff: string) {
     let patches = changeContent.split(/@@.+?@@\n?/).slice(1)
     try {
         //@ts-ignore
+        if (changeContent.startsWith('new file mode')) {
+            //@ts-ignore
+            console.log(chalk.blue('Tạo mới file:'), chalk.green(_bFile))
+            let _content = patches[0].split('\n').map(t => t.replace(/^\+/g, '')).join('\n')
+            writeFileSync(path.join(rootFolder, _bFile), _content)
+            return
+        }
         let _fileContent = fs.readFileSync(path.join(rootFolder, _aFile), 'utf-8')
         let patchCount = 0
         patches.forEach(_patch => {
