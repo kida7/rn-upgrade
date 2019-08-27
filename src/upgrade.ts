@@ -41,44 +41,49 @@ ${chalk.red('You should run in the project folder or provide the path to the pro
         main()
         return
     }
-    try {
+    // try {
 
-        let _package = JSON.parse(fs.readFileSync(path.join(rootFolder, 'package.json'), 'utf-8'))
-        let _name = _package.name
-        let _currentVer = _package.dependencies['react-native'].replace(/[^\d\.-\w]/g, '')
-        let diff = argv.diff || `https://raw.githubusercontent.com/react-native-community/rn-diff-purge/diffs/diffs/${_currentVer}..${_newVer}.diff`
+    let _package = JSON.parse(fs.readFileSync(path.join(rootFolder, 'package.json'), 'utf-8'))
+    let _name = _package.name
+    let _currentVer = _package.dependencies['react-native'].replace(/[^\d\.-\w]/g, '')
+    let diff = argv.diff || `https://raw.githubusercontent.com/react-native-community/rn-diff-purge/diffs/diffs/${_currentVer}..${_newVer}.diff`
 
-        const androidManifestPath = path.join(rootFolder, 'android/app/src/main/AndroidManifest.xml')
-        let androidManifest = fs.readFileSync(androidManifestPath, { encoding: 'utf-8' })
-        //@ts-ignore
-        let _androidPackage = androidManifest.match(/package="(.+?)"/)[1]
-        console.log(_androidPackage)
-        // return
-        let diffContent = diff.match(/http/) ? await exec(`curl ${diff}`, null, true) : fs.readFileSync(diff, 'utf-8')
-        if (!diffContent.startsWith('diff')) {
-            console.log('Có biến với version bạn chọn')
-            return
-        }
-        diffContent = diffContent.replace(/\W[ab]\/RnDiffApp\//g, match => match
-            .replace(/(\W[ab]\/)RnDiffApp\//, '$1'))
-            .replace(/ios\/RnDiffApp/g, 'ios/' + _name)
-            .replace(/com\.rndiffapp/g, _androidPackage)
-            .replace(/com\/rndiffapp/g, _androidPackage.replace(/\./g, '\/'))
-            .replace(/RnDiffApp/g, _name)
-        writeFileSync('./diff', diffContent)
-        //@ts-ignore
-        let changeBlocks = diffContent
-            .split(/diff --git a\/.+ b\/.+\n/).slice(1)
-        let _allDiff = diffContent.match(/diff --git a\/.+ b\/.+\n/g) || []
-        let noPatchFile: string[] = []
-        for (let i = 0; i < changeBlocks.length; i++) {
-            await patch(changeBlocks[i], _allDiff[i])
-        }
-    } catch (ex) {
-        console.log(chalk.red(ex.message), '\n')
-        argv.help = true
-        main()
+    const androidManifestPath = path.join(rootFolder, 'android/app/src/main/AndroidManifest.xml')
+    let androidManifest = fs.readFileSync(androidManifestPath, { encoding: 'utf-8' })
+    //@ts-ignore
+    let _androidPackage = androidManifest.match(/package="(.+?)"/)[1]
+    console.log(_androidPackage)
+    // return
+    let diffContent = diff.match(/http/) ? await exec(`curl ${diff}`, null, true) : fs.readFileSync(diff, 'utf-8')
+    if (!diffContent.startsWith('diff')) {
+        console.log('Có biến với version bạn chọn')
+        return
     }
+    diffContent = diffContent.replace(/\W[ab]\/RnDiffApp\//g, match => match
+        .replace(/(\W[ab]\/)RnDiffApp\//, '$1'))
+        .replace(/ios\/RnDiffApp/g, 'ios/' + _name)
+        .replace(/com\.rndiffapp/g, _androidPackage)
+        .replace(/com\/rndiffapp/g, _androidPackage.replace(/\./g, '\/'))
+        .replace(/RnDiffApp/g, _name)
+    if (_isTest) {
+        console.log(__dirname)
+        fse.outputFileSync(path.join(__dirname, 'diff.diff'), diffContent)
+    }
+    //@ts-ignore
+    let changeBlocks = diffContent
+        .split(/[^+-\\]diff --git a\/.+ b\/.+/).slice(1)
+    let _allDiff = diffContent.match(/[^+-\\]diff --git a\/.+ b\/.+\n/g) || []
+    let noPatchFile: string[] = []
+    // console.log(changeBlocks.length);
+    // return
+    for (let i = 0; i < changeBlocks.length; i++) {
+        await patch(changeBlocks[i], _allDiff[i])
+    }
+    // } catch (ex) {
+    //     console.log(chalk.red(ex.message), '\n')
+    //     argv.help = true
+    //     main()
+    // }
 
 })()
 
@@ -116,11 +121,12 @@ function patch2(_fileContent: string, block4: string, deep: number, _file: strin
 }
 
 async function patch(changeContent: string, diff: string) {
-    let match = diff.match('diff --git a\/(.+) b\/(.+)')
+    let match = diff.match(/[^+-\\]diff --git a\/(.+) b\/(.+)/)
     //@ts-ignore
     let _aFile = match[1]
     //@ts-ignore
     let _bFile = match[2]
+    // console.log({ a: _aFile, b: _bFile })
     if (changeContent.match(/GIT binary patch/)) {
         let link = `https://raw.githubusercontent.com/react-native-community/rn-diff-purge/version/${_newVer}/RnDiffApp/${_bFile}`
         //@ts-ignore
@@ -134,7 +140,7 @@ async function patch(changeContent: string, diff: string) {
             exec(`rm -rf ${path.join(rootFolder, _aFile)}`)
         return
     }
-    let patches = changeContent.split(/@@.+?@@\n?/).slice(1)
+    let patches = changeContent.split(/^@@.+?@@\n?/).slice(1)
     try {
         //@ts-ignore
         if (changeContent.startsWith('new file mode')) {
@@ -155,7 +161,7 @@ async function patch(changeContent: string, diff: string) {
         })
         writeFileSync(path.join(rootFolder, _bFile), _fileContent)
         //@ts-ignore
-        console.log(chalk.yellow(`Đã sửa ${chalk.blue('{0}/{1}')} chỗ của file: ${chalk.green('{2}')}`).format(patchCount, patches.length, _aFile))
+        console.log(chalk.yellow(`Apply ${chalk.blue('{0}/{1}')} patches on file: ${chalk.green('{2}')}`).format(patchCount, patches.length, _aFile))
         if (patchCount < patches.length) {
             console.log(chalk.redBright('Conflict:'))
             console.log(chalk.gray(dicCantPatch[_aFile].join(chalk.redBright('\nConflict:\n'))))
