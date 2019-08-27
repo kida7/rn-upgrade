@@ -59,7 +59,7 @@ ${chalk.red('You should run in the project folder or provide the path to the pro
         console.log('Có biến với version bạn chọn')
         return
     }
-    diffContent = diffContent.replace(/\W[ab]\/RnDiffApp\//g, match => match
+    diffContent = '\n' + diffContent.replace(/\W[ab]\/RnDiffApp\//g, match => match
         .replace(/(\W[ab]\/)RnDiffApp\//, '$1'))
         .replace(/ios\/RnDiffApp/g, 'ios/' + _name)
         .replace(/com\.rndiffapp/g, _androidPackage)
@@ -71,8 +71,8 @@ ${chalk.red('You should run in the project folder or provide the path to the pro
     }
     //@ts-ignore
     let changeBlocks = diffContent
-        .split(/[^+-\\]diff --git a\/.+ b\/.+/).slice(1)
-    let _allDiff = diffContent.match(/[^+-\\]diff --git a\/.+ b\/.+\n/g) || []
+        .split(/\ndiff --git a\/.+ b\/.+/).slice(1)
+    let _allDiff = diffContent.match(/\ndiff --git a\/.+ b\/.+\n/g) || []
     let noPatchFile: string[] = []
     // console.log(changeBlocks.length);
     // return
@@ -121,7 +121,7 @@ function patch2(_fileContent: string, block4: string, deep: number, _file: strin
 }
 
 async function patch(changeContent: string, diff: string) {
-    let match = diff.match(/[^+-\\]diff --git a\/(.+) b\/(.+)/)
+    let match = diff.match(/diff --git a\/(.+) b\/(.+)/)
     //@ts-ignore
     let _aFile = match[1]
     //@ts-ignore
@@ -140,7 +140,7 @@ async function patch(changeContent: string, diff: string) {
             exec(`rm -rf ${path.join(rootFolder, _aFile)}`)
         return
     }
-    let patches = changeContent.split(/^@@.+?@@\n?/).slice(1)
+    let patches = changeContent.split(/\n@@.+?@@\n?/).slice(1)
     try {
         //@ts-ignore
         if (changeContent.startsWith('new file mode')) {

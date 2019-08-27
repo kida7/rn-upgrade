@@ -11,4 +11,5 @@ const argv = parser(process.argv.slice(2));
     await exec(`git commit -m 'publish version ${_package.version}'`)
     await exec('tsc')
     await exec('npm publish')
+    await exec('yarn global add rn-upgrade')
 })()
