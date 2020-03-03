@@ -29,7 +29,6 @@ console.log(rootFolder)
 let _package = JSON.parse(fse.readFileSync(path.join(rootFolder, 'package.json'), 'utf-8'))
 const csvFile = argv.csv || _package.name + '.csv';
 const ext = Object.keys(_package.devDependencies).indexOf('@types/react-native') > 0 ? 'ts' : 'js'
-const langFilePath = path.join(rootFolder, argv.langFile || 'src/res/strings.' + ext);
 let alias = argv.alias;
 let langRules: [RegExp, (key: string) => string][] = [];
 let defaultLangRules = `let keyInCode = key => \`strings.\${key}\`
@@ -44,13 +43,16 @@ langRules = [
     [/(?<=html={)(['"])([^\\1\\n])+?\\1/g, keyInCode]
 ]`;
 let langRulesPath = path.join(rootFolder, 'lang-rules.js');
+let langFilePath = argv.langFile;
 (async function main() {
-    // console.log({ rootFolder, csvFile, ext, langFilePath, alias })
     let extReg = new RegExp(`.${ext}`.toRegex('', true))
+    await getAllFiles('src', extReg)
+    langFilePath = langFilePath || applyFiles.find(t => t.match(/strings\./))
     if (!fse.existsSync(langRulesPath)) {
         console.log('lang-rules.is not exist! Initialize default')
         fse.writeFileSync(langRulesPath, defaultLangRules)
-    } else if (argv.test) {
+    }
+    else if (argv.test) {
         console.log(fse.readFileSync(langRulesPath, 'utf-8').replace(/\\/g, '\\\\').replace(/(`|\$)/g, "\\$1"))
     }
     if (argv.help || argv.h) {
@@ -76,7 +78,6 @@ let langRulesPath = path.join(rootFolder, 'lang-rules.js');
     if (add) {
         run = true
         let strings = typeof add == 'string' ? [add] : add
-        await getAllFiles('src', extReg)
         for (let i in applyFiles) {
             await exportLangFromFile(applyFiles[i], strings)
         }
