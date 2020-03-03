@@ -1,6 +1,6 @@
 {
   "name": "rn-upgrade",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "react native dev tools",
   "main": "dist/index.js",
   "repository": {
