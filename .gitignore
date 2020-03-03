@@ -2,3 +2,5 @@ node_modules/
 dist/
 diff.diff
 yarn.lock
+src/genimg.ts
+src/publish.ts

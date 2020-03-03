@@ -14,7 +14,8 @@ let deviceId, status, runBoot;
         console.log(`
 Mở máy ảo Iphone
 
-Usage: node sim [-d DeviceName]
+Usage: 
+    opensim [-d DeviceName]
 
 Mặc định: Iphone 6s
         `)

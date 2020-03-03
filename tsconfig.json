@@ -1,4 +1,8 @@
 {
+  "exclude": [
+    "src/genimg.ts",
+    "src/publish.ts",
+  ],
   "compilerOptions": {
     /* Basic Options */
     // "incremental": true,                   /* Enable incremental compilation */
