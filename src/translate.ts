@@ -44,6 +44,7 @@ langRules = [
 ]`;
 let langRulesPath = path.join(rootFolder, 'lang-rules.js');
 let langFilePath = argv.langFile;
+let toLang = argv.to;
 (async function main() {
     let extReg = new RegExp(`.${ext}`.toRegex('', true))
     await getAllFiles('src', extReg)
@@ -94,7 +95,17 @@ let langFilePath = argv.langFile;
             await exportStrings(applyFiles[i])
         }
     }
-
+    if (toLang) {
+        run = true
+        lang[toLang] = lang[toLang] || {}
+        for (let key in lang[originLang]) {
+            if (lang[toLang][key])
+                continue
+            let _translate = await translate(lang[originLang][key], { from: originLang, to: toLang })
+            console.log(lang[originLang][key], chalk.green(_translate))
+            lang[toLang][key] = _translate
+        }
+    }
     if (toCSV) {
         run = true
         let _csv = (_toCSV(lang))
@@ -104,6 +115,7 @@ let langFilePath = argv.langFile;
         run = true
         await csv2Lang()
     }
+
     if (!argv.test && run)
         writeLangFile(lang)
     if (!run) {
@@ -224,7 +236,7 @@ async function applyLangExport(file: string, content: string) {
 
 function writeLangFile(_lang: LangObject) {
     let _langStr = JSON.stringify(_lang, null, 4)
-    _langStr = _langStr.replace(/"([^"]+)":/g, '$1:')
+    _langStr = _langStr.replace(/"([^"-]+)":/g, '$1:')
     fse.writeFile(langFilePath, `import LocalizedStrings from "react-native-localization";
 import _ from 'lodash'
 const strings = new LocalizedStrings(${ _langStr})

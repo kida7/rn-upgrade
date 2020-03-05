@@ -23,13 +23,15 @@ rn-upgrade [project path, default: current folder] --dif <diff path>
 
 ### Scan string and export to language file for react-native-localization
 ```sh
-translate [folder/default current folder] [--scan] [--add string string string...] [--to-csv] [--import <csv file>]
+translate [folder/default current folder] [--scan] [--add string string string...] [--to-csv] [--import <csv file>] [--alias <alias string import>] [--to <locale>]
 ```
 #### Options:
 - scan: scan folder and export string to language file
-- add: scan specific string in project and export to language file
+- add: scan specific strings in project and export to language file
 - to-csv: export language file to csv format
 - import: import csv and save as language file
+- to: translate all strings from source language to specific language 
+- alias: use alias import instead path import, ex: import strings from '$res/strings'
 
 ## Contribute
 
