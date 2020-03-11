@@ -177,8 +177,22 @@ async function addLang(sourceStr: string, originStr?: string) {
     sourceStr = sourceStr.replace(/^['"](.+)['"]$/, '$1')
     let enStr = (await translate(sourceStr, { to: 'en' })).trim()
     let key = getKey(enStr)
-    if (!lang.en[key]) lang.en[key] = enStr
-    if (!lang[originLang][key]) lang[originLang][key] = sourceStr
+    if (!lang[originLang][key])
+        lang[originLang][key] = sourceStr
+    else {
+        //nếu đã tồn tại key nhưng không khớp sourceStr
+        while (lang[originLang][key] && lang[originLang][key] != sourceStr) {
+            let match = key.match(/(.+?)(\d+)?$/)
+            //@ts-ignore
+            key = '{0}{1}'.format(match[1], (parseInt(match[2]) || 0) + 1)
+        }
+        lang[originLang][key] = sourceStr
+    }
+    if (!lang.en[key]) {
+        lang.en[key] = enStr
+    }
+
+
     console.log(key, chalk.red(sourceStr))
     return key
 }
