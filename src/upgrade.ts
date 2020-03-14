@@ -4,19 +4,32 @@
  * @author kida7
  */
 
-import { exec } from './utils'
-import parser from 'yargs-parser'
+import { exec, Version } from './utils'
 import path from 'path'
 import fs from 'fs'
 import fse from 'fs-extra'
 import chalk from 'chalk'
-// import axios from 'axios'
+import { ArgumentParser } from 'argparse'
+import './string'
+const parser = new ArgumentParser({
+    argumentDefault: {
 
-require('./string')
-const argv = parser(process.argv.slice(2))
+    },
+    // version: Version,
+
+    addHelp: true,
+    description: 'React Native upgrade tool using rn-diff-purge'
+})
+parser.addArgument(['--source'], { help: 'Project folder path, default current folder', dest: 'source', type: String })
+parser.addArgument(['--version', '-v'], { help: 'Specific version to upgrade/downgrade', dest: 'version', type: String })
+parser.addArgument(['--diff'], { help: 'Specific diff file (with rn-diff-purge repo) to patch (--version/-v option will be ignore', dest: 'diff', type: String, })
+parser.addArgument(['--test'], { help: 'If true, there is no file change', dest: 'test', type: String, metavar: '' })
+
+const argv = parser.parseArgs()
+console.log(argv)
 let _isTest = argv.test
 let writeFileSync = _isTest ? function () { } : fse.outputFileSync
-let _folder = argv._[0] || '.'
+let _folder = argv.source || '.'
 let rootFolder = path.relative('.', _folder)
 
 let _newVer = argv.v || argv.version;
@@ -25,17 +38,7 @@ let dicCantPatch: {
 } = {};
 // let _allDiff:string[]
 (async function main() {
-    if (argv.help || argv.h) {
-        console.log(
-            `Upgrade react native project to a specific version
 
-Usage:
-    rn-upgrade [project folder] --version <version>
-
-${chalk.red('You should run in the project folder or provide the path to the project folder')}`
-        )
-        return
-    }
     if (!argv.diff && !_newVer) {
         argv.help = true
         main()

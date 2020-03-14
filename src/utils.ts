@@ -1,6 +1,8 @@
 import path from 'path'
 import fs from 'fs'
 import { spawn, SpawnOptions } from 'child_process'
+const _package = require('../package.json')
+
 function argsToArray(args: string) {
     args = args.replace(/('|").+?[^\\]\1/g, match => {
         return match.replace(/ /g, '_#')
@@ -31,4 +33,9 @@ function exec(command: string, options?: SpawnOptions | null, takeReturn = false
         }
     })
 }
-export { exec, argsToArray }
+const Version = _package.version
+export {
+    exec,
+    argsToArray,
+    Version
+}

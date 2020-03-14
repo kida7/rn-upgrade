@@ -5,11 +5,30 @@ import fse from 'fs-extra'
 import path from 'path'
 import chalk from 'chalk'
 import parse from 'csv-parse'
-import parser from 'yargs-parser'
 import _ from 'lodash'
-
-const argv = parser(process.argv.slice(2))
+import { ArgumentParser } from 'argparse'
 const translate = require('translate-google')
+
+const ownPackage = require('../package.json')
+const parser = new ArgumentParser({
+    argumentDefault: {
+
+    },
+    version: ownPackage.version,
+    addHelp: true,
+    description: 'React Native locale tool'
+})
+parser.addArgument(['-to-csv'], { help: 'Export language file to csv', dest: 'toCSv', type: String, metavar: '' })
+parser.addArgument(['--scan'], { help: 'Scan string in project to export to locale file', dest: 'scan', type: Boolean, metavar: '' })
+parser.addArgument(['-a', '--add'], { help: 'Search for specific strings and export to locale file', dest: 'add', type: Array, metavar: 'STRING1 STRING2 ...' })
+parser.addArgument(['--csv'], { help: 'Import strings from csv file and export to locale file, default is <package name>.csv', dest: 'csv', type: String, metavar: 'CSV_FILE' })
+parser.addArgument(['-i', '--import'], { help: 'import from csv, specific by --csv option', dest: 'import', type: Boolean, metavar: '' })
+parser.addArgument(['--to'], { help: 'translate origin locale strings to specific locale, ex: zh-CN', dest: 'to', type: String, metavar: 'LOCALE' })
+parser.addArgument(['--alias'], { help: 'alias import instead of path import', dest: 'alias', type: String })
+parser.addArgument(['--lang-file'], { help: 'language file, if doesn\'t specific, we will search automatically', dest: 'langFile', type: String })
+parser.addArgument(['--test'], { help: 'if true, script will show all results without doing any change', dest: 'test', type: Boolean, metavar: '' })
+
+const argv = parser.parseArgs()
 
 const toCSV = argv.toCsv
 let scan = argv.scan;
@@ -56,12 +75,7 @@ let toLang = argv.to;
     else if (argv.test) {
         console.log(fse.readFileSync(langRulesPath, 'utf-8').replace(/\\/g, '\\\\').replace(/(`|\$)/g, "\\$1"))
     }
-    if (argv.help || argv.h) {
-        console.log(`${chalk.green('Usage')}:
-    translate [project path] [--scan] [--test] [--add <string> [<string>]...] [--lang-file <language file path>] [-i|--import <csv file>] [--to-csv]`
-        )
-        return
-    }
+
     let data, run
     try {
         data = fse.readFileSync(langFilePath, 'utf-8')
