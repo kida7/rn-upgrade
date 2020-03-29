@@ -12,18 +12,13 @@ import chalk from 'chalk'
 import { ArgumentParser } from 'argparse'
 import './string'
 const parser = new ArgumentParser({
-    argumentDefault: {
-
-    },
-    // version: Version,
-
     addHelp: true,
     description: 'React Native upgrade tool using rn-diff-purge'
 })
-parser.addArgument(['--source'], { help: 'Project folder path, default current folder', dest: 'source', type: String })
-parser.addArgument(['--version', '-v'], { help: 'Specific version to upgrade/downgrade', dest: 'version', type: String })
-parser.addArgument(['--diff'], { help: 'Specific diff file (with rn-diff-purge repo) to patch (--version/-v option will be ignore', dest: 'diff', type: String, })
-parser.addArgument(['--test'], { help: 'If true, there is no file change', dest: 'test', type: String, metavar: '' })
+parser.addArgument(['--source'], { help: 'Project folder path, default current folder', dest: 'source', type: 'string' })
+parser.addArgument(['--version', '-v'], { help: 'Specific version to upgrade/downgrade', dest: 'version', type: 'string' })
+parser.addArgument(['--diff'], { help: 'Specific diff file (with rn-diff-purge repo) to patch (--version/-v option will be ignore', dest: 'diff', type: 'string', })
+parser.addArgument(['--test'], { help: 'If true, there is no file change', dest: 'test', type: 'string', metavar: '' })
 
 const argv = parser.parseArgs()
 console.log(argv)
@@ -31,23 +26,19 @@ let _isTest = argv.test
 let writeFileSync = _isTest ? function () { } : fse.outputFileSync
 let _folder = argv.source || '.'
 let rootFolder = path.relative('.', _folder)
-
 let _newVer = argv.v || argv.version;
 let dicCantPatch: {
     [key: string]: string[]
 } = {};
 // let _allDiff:string[]
 (async function main() {
-
-    if (!argv.diff && !_newVer) {
-        argv.help = true
-        main()
-        return
-    }
     // try {
-
     let _package = JSON.parse(fs.readFileSync(path.join(rootFolder, 'package.json'), 'utf-8'))
     let _name = _package.name
+    if (!_package.dependencies['react-native']) {
+        console.log('Could not find react native project')
+        return
+    }
     let _currentVer = _package.dependencies['react-native'].replace(/[^\d\.-\w]/g, '')
     let diff = argv.diff || `https://raw.githubusercontent.com/react-native-community/rn-diff-purge/diffs/diffs/${_currentVer}..${_newVer}.diff`
 
@@ -84,8 +75,6 @@ let dicCantPatch: {
     }
     // } catch (ex) {
     //     console.log(chalk.red(ex.message), '\n')
-    //     argv.help = true
-    //     main()
     // }
 
 })()

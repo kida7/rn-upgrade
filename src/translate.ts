@@ -11,9 +11,7 @@ const translate = require('translate-google')
 
 const ownPackage = require('../package.json')
 const parser = new ArgumentParser({
-    argumentDefault: {
-
-    },
+    argumentDefault: undefined,
     version: ownPackage.version,
     addHelp: true,
     description: 'React Native locale tool'
