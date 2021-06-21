@@ -6,8 +6,13 @@
 ## Installation
 
 ```sh
-yarn globall add rn-upgrade
+yarn global add rn-upgrade
 ```
+or does not need to do anything if using npx
+```sh
+npx rn-upgrade ...
+```
+
 
 ## Usage
 
