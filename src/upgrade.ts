@@ -55,7 +55,18 @@ let dicCantPatch: {
   [key: string]: string[];
 } = {};
 // let _allDiff:string[]
+
 (async function main() {
+  function convertToCamelCase(text: string) {
+    return text
+      .replace(/-([a-z])/g, function (match, letter) {
+        return letter.toUpperCase();
+      })
+      .replace(/^./, function (match) {
+        return match.toUpperCase();
+      });
+  }
+
   // try {
   let _package = JSON.parse(
     fs.readFileSync(path.join(rootFolder, "package.json"), "utf-8")
@@ -85,6 +96,7 @@ let dicCantPatch: {
   //@ts-ignore
   let _androidPackage = androidManifest.match(/package="(.+?)"/)[1];
   console.log(_androidPackage);
+  let iosPackage = convertToCamelCase(_name);
   // return
   let diffContent = diff.match(/http/)
     ? await exec(`curl ${diff}`, null, true)
@@ -99,13 +111,13 @@ let dicCantPatch: {
       .replace(/\W[ab]\/RnDiffApp\//g, (match) =>
         match.replace(/(\W[ab]\/)RnDiffApp\//, "$1")
       )
-      .replace(/ios\/RnDiffApp/g, "ios/" + _name)
+      .replace(/ios\/RnDiffApp/g, "ios/" + iosPackage)
       .replace(/com\.rndiffapp/g, _androidPackage)
       .replace(/com\/rndiffapp/g, _androidPackage.replace(/\./g, "/"))
       .replace(/RnDiffApp/g, _name);
   if (_isTest) {
     console.log(__dirname);
-    fse.outputFileSync(path.join(__dirname, "diff.diff"), diffContent);
+    fse.outputFileSync(path.join(rootFolder, "diff.diff"), diffContent);
   }
   //@ts-ignore
   let changeBlocks = diffContent.split(/\ndiff --git a\/.+ b\/.+\n/).slice(1);
@@ -252,7 +264,7 @@ async function patch(changeContent: string, diff: string) {
         chalk.gray(dicCantPatch[_aFile].join(chalk.redBright("\nConflict:\n")))
       );
     }
-  } catch (ex) {
+  } catch (ex: any) {
     console.log(chalk.red(fileMode));
     console.log(ex.message);
     switch (ex.code) {
