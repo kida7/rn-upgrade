@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * @author kida7
+ * @autor kida7
  */
 
 import { exec, Version } from "./utils";
@@ -11,244 +11,284 @@ import fse from "fs-extra";
 import chalk from "chalk";
 import { ArgumentParser } from "argparse";
 import "./string";
+
 const parser = new ArgumentParser({
   addHelp: true,
   description: "React Native upgrade tool using rn-diff-purge",
 });
-parser.addArgument(["--source"], {
+
+parser.addArgument(["--source", "-s"], {
   help: "Project folder path, default current folder",
   dest: "source",
   type: "string",
 });
+
+parser.addArgument(["--apply-for", "-a"], {
+  help: "Apply only for a specific folder",
+  dest: "applyFor",
+  type: "string",
+});
+
 parser.addArgument(["--version", "-v"], {
   help: "Specific version to upgrade/downgrade",
   dest: "version",
   type: "string",
 });
-parser.addArgument(["--diff"], {
+
+parser.addArgument(["--diff", "-d"], {
   help: "Specific diff file (with rn-diff-purge repo) to patch (--version/-v option will be ignore",
   dest: "diff",
   type: "string",
 });
-parser.addArgument(["--test"], {
+
+parser.addArgument(["--test", "-t"], {
   help: "If true, there is no file change",
   dest: "test",
   type: "string",
   metavar: "",
 });
+
 parser.addArgument(["--save"], {
-  help: "Save ouput to file",
+  help: "Save output to file",
   dest: "save",
   type: "string",
   metavar: "",
 });
 
-const argv = parser.parseArgs();
-console.log(argv);
-let _isTest = argv.test;
-let writeFileSync = _isTest ? function () {} : fse.outputFileSync;
-let _folder = argv.source || ".";
-let rootFolder = path.relative(".", _folder);
-let _newVer = argv.v || argv.version;
-let _saveTo = argv.save;
-let dicCantPatch: {
-  [key: string]: string[];
-} = {};
-// let _allDiff:string[]
+const args = parser.parseArgs();
+
+const isTestMode = args.test;
+const writeFile = isTestMode ? () => {} : fse.outputFileSync;
+const sourceFolder = args.source || ".";
+const rootFolder = path.relative(".", sourceFolder);
+const newVersion = args.v || args.version;
+const saveFilePath = args.save;
+const applyForRegex = args.applyFor && new RegExp(args.applyFor as string);
+
+const filesWithConflicts: { [key: string]: string[] } = {};
 
 (async function main() {
   function convertToCamelCase(text: string) {
     return text
-      .replace(/-([a-z])/g, function (match, letter) {
-        return letter.toUpperCase();
-      })
-      .replace(/^./, function (match) {
-        return match.toUpperCase();
-      });
+      .replace(/-([a-z])/g, (match, letter) => letter.toUpperCase())
+      .replace(/^./, (match) => match.toUpperCase());
   }
+  console.log({ sourceFolder });
+  try {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(rootFolder, "package.json"), "utf-8")
+    );
 
-  // try {
-  let _package = JSON.parse(
-    fs.readFileSync(path.join(rootFolder, "package.json"), "utf-8")
-  );
-  let _name = _package.name;
+    const projectName = packageJson.name;
 
-  // Kiểm tra nếu không có react native thì báo lỗi
-  if (!_package.dependencies["react-native"]) {
-    console.log("Could not find react native project");
-    return;
-  }
-  let _currentVer = _package.dependencies["react-native"].replace(
-    /[^\d\.-\w]/g,
-    ""
-  );
-  let diff =
-    argv.diff ||
-    `https://raw.githubusercontent.com/react-native-community/rn-diff-purge/diffs/diffs/${_currentVer}..${_newVer}.diff`;
+    if (!packageJson.dependencies["react-native"]) {
+      console.log("Could not find react native project");
+      return;
+    }
 
-  const androidManifestPath = path.join(
-    rootFolder,
-    "android/app/src/main/AndroidManifest.xml"
-  );
-  let androidManifest = fs.readFileSync(androidManifestPath, {
-    encoding: "utf-8",
-  });
-  //@ts-ignore
-  let _androidPackage = androidManifest.match(/package="(.+?)"/)[1];
-  console.log(_androidPackage);
-  let iosPackage = convertToCamelCase(_name);
-  // return
-  let diffContent = diff.match(/http/)
-    ? await exec(`curl ${diff}`, null, true)
-    : fs.readFileSync(diff, "utf-8");
-  if (!diffContent.startsWith("diff")) {
-    console.log("There was an unexpected error with the version you choosed");
-    return;
+    const currentVersion = packageJson.dependencies["react-native"].replace(
+      /[^\d\.-\w]/g,
+      ""
+    );
+
+    const diffUrl =
+      args.diff ||
+      `https://raw.githubusercontent.com/react-native-community/rn-diff-purge/diffs/diffs/${currentVersion}..${newVersion}.diff`;
+
+    const androidManifestPath = path.join(
+      rootFolder,
+      "android/app/src/main/AndroidManifest.xml"
+    );
+
+    const androidManifest = fs.readFileSync(androidManifestPath, {
+      encoding: "utf-8",
+    });
+
+    //@ts-ignore
+    const androidPackageName = androidManifest.match(/package="(.+?)"/)[1];
+
+    const iosPackageName = convertToCamelCase(projectName);
+
+    const diffContent = diffUrl.match(/http/)
+      ? await exec(`curl ${diffUrl}`, null, true)
+      : fs.readFileSync(diffUrl, "utf-8");
+
+    if (!diffContent.startsWith("diff")) {
+      console.log("There was an unexpected error with the version you choosed");
+      return;
+    }
+
+    const updatedDiffContent =
+      "\n" +
+      diffContent
+        .replace(/\W[ab]\/RnDiffApp\//g, (match) =>
+          match.replace(/(\W[ab]\/)RnDiffApp\//, "$1")
+        )
+        .replace(/ios\/RnDiffApp/g, "ios/" + iosPackageName)
+        .replace(/com\.rndiffapp/g, androidPackageName)
+        .replace(/com\/rndiffapp/g, androidPackageName.replace(/\./g, "/"))
+        .replace(/RnDiffApp/g, projectName);
+
+    if (isTestMode) {
+      console.log(__dirname);
+      fse.outputFileSync(
+        path.join(rootFolder, "diff.diff"),
+        updatedDiffContent
+      );
+    }
+
+    const changeBlocks = updatedDiffContent
+      .split(/\ndiff --git a\/.+ b\/.+\n/)
+      .slice(1);
+
+    const allDiffs =
+      updatedDiffContent.match(/\ndiff --git a\/.+ b\/.+\n/g) || [];
+    const noPatchFiles: string[] = [];
+
+    for (let i = 0; i < changeBlocks.length; i++) {
+      await applyPatch(changeBlocks[i], allDiffs[i]);
+    }
+  } catch (ex: any) {
+    console.log(chalk.red(ex.message), "\n");
   }
-  diffContent =
-    "\n" +
-    diffContent
-      .replace(/\W[ab]\/RnDiffApp\//g, (match) =>
-        match.replace(/(\W[ab]\/)RnDiffApp\//, "$1")
-      )
-      .replace(/ios\/RnDiffApp/g, "ios/" + iosPackage)
-      .replace(/com\.rndiffapp/g, _androidPackage)
-      .replace(/com\/rndiffapp/g, _androidPackage.replace(/\./g, "/"))
-      .replace(/RnDiffApp/g, _name);
-  if (_isTest) {
-    console.log(__dirname);
-    fse.outputFileSync(path.join(rootFolder, "diff.diff"), diffContent);
-  }
-  //@ts-ignore
-  let changeBlocks = diffContent.split(/\ndiff --git a\/.+ b\/.+\n/).slice(1);
-  let _allDiff = diffContent.match(/\ndiff --git a\/.+ b\/.+\n/g) || [];
-  let noPatchFile: string[] = [];
-  // console.log(changeBlocks.length);
-  // return
-  for (let i = 0; i < changeBlocks.length; i++) {
-    await patch(changeBlocks[i], _allDiff[i]);
-  }
-  // } catch (ex) {
-  //     console.log(chalk.red(ex.message), '\n')
-  // }
 })();
 
-function patch2(
-  _fileContent: string,
-  block4: string,
-  deep: number,
-  _file: string
+function applyPatchBlock(
+  fileContent: string,
+  blockContent: string,
+  depth: number,
+  filePath: string
 ): string | null {
-  let _block3 = block4.split("\n");
-  if (!deep)
-    _block3 = _block3
-      .filter((t) => !t.match(/^\\/))
-      .map((t) => t.replace(/^ /g, ""));
-  let origin = _block3
-    .filter((t) => !t.match(/^[\+]/))
-    .map((t) => t.replace(/^[-]/, ""))
-    .join("\n");
-  let _patch = _block3
-    .filter((t) => !t.match(/^[-]/))
-    .map((t) => t.replace(/^[\+]/, ""))
+  let blockLines = blockContent.split("\n");
+  // if (!depth)
+  //   blockLines = blockLines
+  //     .filter((line) => !line.match(/^\\/))
+  //     .map((line) => line.replace(/^ /g, ""));
+
+  const originalContent = blockLines
+    .filter((line) => !line.match(/^[\+]/))
+    .map((line) => line.replace(/^[-\s]/, ""))
     .join("\n");
 
-  //@ts-ignore
-  let _reg = origin.toRegex("i", true).replace(/\d+/g, "\\d+");
+  const patchedContent = blockLines
+    .filter((line) => !line.match(/^[-]/))
+    .map((line) => line.replace(/^[\+\s]/, ""))
+    .join("\n");
 
-  if (!_fileContent.match(new RegExp(_reg, "m"))) {
+  const regexPattern = originalContent
+    .toRegex("i", true)
+    //@ts-ignore
+    .replace(/\d+/g, "\\d+");
+
+  if (!fileContent.match(new RegExp(regexPattern, "m"))) {
     let result = null;
-    if (!_block3[0].match(/^[+-]/))
-      result = patch2(
-        _fileContent,
-        _block3.slice(1).join("\n"),
-        deep + 1,
-        _file
+    if (!blockLines[0].match(/^[+-]/))
+      result = applyPatchBlock(
+        fileContent,
+        blockLines.slice(1).join("\n"),
+        depth + 1,
+        filePath
       );
-    else if (!_block3[_block3.length - 1].match(/^[+-]/))
-      result = patch2(
-        _fileContent,
-        _block3.slice(0, _block3.length - 1).join("\n"),
-        deep + 1,
-        _file
+    else if (!blockLines[blockLines.length - 1].match(/^[+-]/))
+      result = applyPatchBlock(
+        fileContent,
+        blockLines.slice(0, blockLines.length - 1).join("\n"),
+        depth + 1,
+        filePath
       );
-    if (!result && !deep) {
-      let _block2 = _block3
-        .map((t) =>
-          t.replace(/^[\+-].*$/g, (match) => {
-            let _match = match.match(/^([\+-])(.*)$/);
+
+    if (!result && !depth) {
+      const coloredBlock = blockLines
+        .map((line) => {
+          return line.replace(/^[\+-\s].*$/g, (match) => {
+            const matchParts = match.match(/^([\+-\s])(.*)$/);
             //@ts-ignore
-            return _match[1] == "+"
-              ? //@ts-ignore
-                chalk.green(_match[2])
-              : //@ts-ignore
-                chalk.red(_match[2]);
-          })
-        )
+            switch (matchParts[1]) {
+              case "+":
+                //@ts-ignore
+                return chalk.green(matchParts[2]);
+              case "-":
+                //@ts-ignore
+                return chalk.red(matchParts[2]);
+              default:
+                //@ts-ignore
+                return matchParts[2];
+            }
+          });
+        })
         .join("\n");
-      //   console.log(_reg);
-      if (!dicCantPatch[_file]) dicCantPatch[_file] = [];
-      dicCantPatch[_file].push(_block2);
+
+      if (!filesWithConflicts[filePath]) filesWithConflicts[filePath] = [];
+      filesWithConflicts[filePath].push(coloredBlock);
     }
     return result;
   }
-  return _fileContent.replace(new RegExp(_reg), _patch);
+  return fileContent.replace(new RegExp(regexPattern), patchedContent);
 }
 
-async function patch(changeContent: string, diff: string) {
-  let match = diff.match(/diff --git a\/(.+) b\/(.+)/);
+async function applyPatch(changeContent: string, diff: string) {
+  const match = diff.match(/diff --git a\/(.+) b\/(.+)/);
   //@ts-ignore
-  let _aFile = match[1];
+  const sourceFile = match[1];
   //@ts-ignore
-  let _bFile = match[2];
-  // console.log({ a: _aFile, b: _bFile })
+  const destinationFile = match[2];
+
+  if (applyForRegex && !applyForRegex.test(destinationFile)) {
+    console.log("Skip {0}".format(destinationFile));
+    return;
+  }
+
   let fileMode = "";
   try {
     if (changeContent.match(/GIT binary patch/)) {
       fileMode = "PATCH BINARY";
-      let link = `https://raw.githubusercontent.com/react-native-community/rn-diff-purge/version/${_newVer}/RnDiffApp/${_bFile}`;
-      //@ts-ignore
+      const link = `https://raw.githubusercontent.com/react-native-community/rn-diff-purge/version/${newVersion}/RnDiffApp/${destinationFile}`;
       console.log(
         `${chalk.yellow("Download")} ${chalk.blue(link)} to ${chalk.green(
-          _bFile
+          destinationFile
         )}`
       );
-      if (_newVer && !_isTest)
-        await exec(`curl ${link} -o ${path.join(rootFolder, _bFile)}`);
+      if (newVersion && !isTestMode)
+        await exec(`curl ${link} -o ${path.join(rootFolder, destinationFile)}`);
       return;
     }
 
     if (changeContent.startsWith("deleted file mode")) {
-      fileMode = "DELTE";
-      console.log(chalk.red("Delete file:"), chalk.green(_aFile));
-      if (!_isTest) exec(`rm -rf ${path.join(rootFolder, _aFile)}`);
+      fileMode = "DELETE";
+      console.log(chalk.red("Delete file:"), chalk.green(sourceFile));
+      if (!isTestMode) exec(`rm -rf ${path.join(rootFolder, sourceFile)}`);
       return;
     }
-    let patches = changeContent.split(/\n@@.+?@@\n?/).slice(1);
-    //@ts-ignore
+
+    const patches = changeContent.split(/\n@@.+?@@\n?/).slice(1);
+
     if (changeContent.startsWith("new file mode")) {
       fileMode = "NEW";
-      //@ts-ignore
-      console.log(chalk.blue("Create new file:"), chalk.green(_bFile));
-      let _content = patches[0]
+      console.log(chalk.blue("Create new file:"), chalk.green(destinationFile));
+      const content = patches[0]
         .split("\n")
-        .map((t) => t.replace(/^\+/g, ""))
+        .map((line) => line.replace(/^\+/g, ""))
         .join("\n");
-      writeFileSync(path.join(rootFolder, _bFile), _content);
+      writeFile(path.join(rootFolder, destinationFile), content);
       return;
     }
+
     fileMode = "PATCH";
-    let _fileContent = fs.readFileSync(path.join(rootFolder, _aFile), "utf-8");
-    let patchCount = 0;
-    patches.forEach((_patch) => {
-      let _new = patch2(_fileContent, _patch, 0, _aFile);
-      if (_new) {
-        patchCount++;
-        _fileContent = _new;
+    let fileContent = fs.readFileSync(
+      path.join(rootFolder, sourceFile),
+      "utf-8"
+    );
+    let appliedPatchCount = 0;
+
+    patches.forEach((patch) => {
+      const newContent = applyPatchBlock(fileContent, patch, 0, sourceFile);
+      if (newContent) {
+        appliedPatchCount++;
+        fileContent = newContent;
       }
     });
-    writeFileSync(path.join(rootFolder, _bFile), _fileContent);
-    //@ts-ignore
+
+    writeFile(path.join(rootFolder, destinationFile), fileContent);
     console.log(
       chalk
         .yellow(
@@ -256,15 +296,19 @@ async function patch(changeContent: string, diff: string) {
             "{2}"
           )}`
         )
-        .format(patchCount, patches.length, _aFile)
+        .format(appliedPatchCount, patches.length, sourceFile)
     );
-    if (patchCount < patches.length) {
+
+    if (appliedPatchCount < patches.length) {
       console.log(chalk.redBright("Conflict:"));
       console.log(
-        chalk.gray(dicCantPatch[_aFile].join(chalk.redBright("\nConflict:\n")))
+        chalk.gray(
+          filesWithConflicts[sourceFile].join(chalk.redBright("\nConflict:\n"))
+        )
       );
     }
   } catch (ex: any) {
+    console.log(ex);
     console.log(chalk.red(fileMode));
     console.log(ex.message);
     switch (ex.code) {
