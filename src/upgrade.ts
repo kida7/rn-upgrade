@@ -9,61 +9,62 @@ import path from "path";
 import fs from "fs";
 import fse from "fs-extra";
 import chalk from "chalk";
-import { ArgumentParser } from "argparse";
+import yargs from "yargs/yargs";
+import { hideBin } from "yargs/helpers";
 import "./string";
+import { Arguments } from "yargs";
 
-const parser = new ArgumentParser({
-  addHelp: true,
-  description: "React Native upgrade tool using rn-diff-purge",
-});
+interface ArgvInterface {
+  source: string;
+  version: string;
+  save: string;
+  applyFor: string;
+  test: boolean;
+  diff: string;
+}
+//@ts-ignore
+const argv: Arguments<ArgvInterface> = yargs(hideBin(process.argv))
+  .option("source", {
+    alias: "s",
+    describe: "Project folder path, default current folder",
+    type: "string",
+    default: ".",
+  })
+  .option("applyFor", {
+    alias: "a",
+    describe: "Apply only for a specific folder",
+    type: "string",
+  })
+  .option("version", {
+    alias: "v",
+    describe: "Specific version to upgrade/downgrade",
+    type: "string",
+  })
+  .option("diff", {
+    alias: "d",
+    describe:
+      "Specific diff file (with rn-diff-purge repo) to patch (--version/-v option will be ignored)",
+    type: "string",
+  })
+  .option("test", {
+    alias: "t",
+    describe: "If true, there is no file change",
+    type: "boolean",
+    default: false,
+  })
+  .option("save", {
+    describe: "Save output to file",
+    type: "string",
+  })
+  .help().argv;
 
-parser.addArgument(["--source", "-s"], {
-  help: "Project folder path, default current folder",
-  dest: "source",
-  type: "string",
-});
-
-parser.addArgument(["--apply-for", "-a"], {
-  help: "Apply only for a specific folder",
-  dest: "applyFor",
-  type: "string",
-});
-
-parser.addArgument(["--version", "-v"], {
-  help: "Specific version to upgrade/downgrade",
-  dest: "version",
-  type: "string",
-});
-
-parser.addArgument(["--diff", "-d"], {
-  help: "Specific diff file (with rn-diff-purge repo) to patch (--version/-v option will be ignore",
-  dest: "diff",
-  type: "string",
-});
-
-parser.addArgument(["--test", "-t"], {
-  help: "If true, there is no file change",
-  dest: "test",
-  type: "string",
-  metavar: "",
-});
-
-parser.addArgument(["--save"], {
-  help: "Save output to file",
-  dest: "save",
-  type: "string",
-  metavar: "",
-});
-
-const args = parser.parseArgs();
-
-const isTestMode = args.test;
+const isTestMode = argv.test;
 const writeFile = isTestMode ? () => {} : fse.outputFileSync;
-const sourceFolder = args.source || ".";
+const sourceFolder = argv.source;
 const rootFolder = path.relative(".", sourceFolder);
-const newVersion = args.v || args.version;
-const saveFilePath = args.save;
-const applyForRegex = args.applyFor && new RegExp(args.applyFor as string);
+const newVersion = argv.v || argv.version;
+const saveFilePath = argv.save;
+const applyForRegex = argv.applyFor && new RegExp(argv.applyFor);
 
 const filesWithConflicts: { [key: string]: string[] } = {};
 
@@ -92,7 +93,7 @@ const filesWithConflicts: { [key: string]: string[] } = {};
     );
 
     const diffUrl =
-      args.diff ||
+      argv.diff ||
       `https://raw.githubusercontent.com/react-native-community/rn-diff-purge/diffs/diffs/${currentVersion}..${newVersion}.diff`;
 
     const androidManifestPath = path.join(
